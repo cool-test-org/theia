@@ -27,12 +27,19 @@ export class MasterProcess extends EventEmitter {
     protected serverWorker: ServerWorker | undefined;
     protected workerCount: number = 0;
 
+    constructor(
+        protected readonly startupTimeout: number
+    ) {
+        super();
+    }
+
     protected async fork(): Promise<ServerWorker> {
         const worker = new ServerWorker(() => this.restart());
         const success = worker.initialized.then(() => true);
 
+        // tslint:disable-next-line:no-any
         const failure = Promise.race(
-            [worker.failed, worker.disconnect, worker.exit, this.timeout(5000)]
+            [worker.failed, worker.disconnect, worker.exit, this.timeout(this.startupTimeout)]
         ).then(() => false);
         const started = await Promise.race([success, failure]);
 
@@ -90,10 +97,7 @@ export class MasterProcess extends EventEmitter {
     }
 
     protected timeout(delay: number): Promise<void> {
-        let resolveTimeout: () => void;
-        const timeout = new Promise<void>(resolve => resolveTimeout = resolve);
-        setTimeout(() => resolveTimeout(), delay);
-        return timeout;
+        return new Promise(resolve => delay >= 0 && setTimeout(resolve, delay));
     }
 
     onexit(listener: (code: number) => void): this {
